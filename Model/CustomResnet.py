@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
 
 # Define the Residual Block
 class ResidualBlock(nn.Module):
@@ -41,14 +39,14 @@ class ResNet(nn.Module):
         self.conv1 = nn.Conv1d(input_dim, hidden_dim, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm1d(hidden_dim)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=1, padding=1)
 
         # Stacking residual blocks
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
 
-        self.avgpool = nn.AdaptiveAvgPool1d((1, 1))
+        self.avgpool = nn.AdaptiveAvgPool1d(1)
 
         # Final fully connected layer
         # input features should be the output channel of the last layer

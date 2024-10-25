@@ -1,5 +1,5 @@
-from BaseMultiheadAttention import BaseAttention
-from CustomFNN import CustomFNN
+from Model.BaseMultiheadAttention import BaseAttention
+from Model.CustomFNN import CustomFNN
 from torch import nn
 
 
@@ -24,13 +24,13 @@ class TransformerLayer(nn.Module):
             self.dense_layer_dim = [input_size, input_size * 4, input_size]
 
         self.ffn = CustomFNN(self.dense_layer_dim, device, drop_rate=drop_rate)
-        self.norm1 = nn.LayerNorm(self.attention_out_size)
-        self.norm2 = nn.LayerNorm(self.attention_out_size)
+        self.norm1 = nn.LayerNorm(self.input_size)
+        self.norm2 = nn.LayerNorm(self.input_size)
         self.dropout1 = nn.Dropout(drop_rate)
 
     def forward(self, x):
         # Apply self-attention layer
-        attn_output = self.self_attn(x, x, x)
+        attn_output = self.self_attn(x, x)
         attn_output = self.dropout1(attn_output)
         x = x + attn_output
         x = self.norm1(x)

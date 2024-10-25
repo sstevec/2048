@@ -11,7 +11,7 @@ class Game2048:
         self.score = 0
         self.merged_count = 0
         self.last_op = -1
-        self.op_order = ['up', 'down', 'left', 'right']
+        self.op_order = ['up', 'right', 'down', 'left']
         self.seed = seed
 
         if seed is not None:
@@ -26,25 +26,26 @@ class Game2048:
         self.board = np.ones((self.board_size, self.board_size)) * mask
 
     def step(self, direction):
-        # 1 is up, 2 is down, 3 is left, 4 is right
-        if direction < 1 or direction > 4:
+        if direction < 0 or direction > 3:
             print("Error: Invalid Direction!")
             return False
-        self.last_op = direction - 1
+
+        self.last_op = direction
+        op = self.op_order[direction]
         first_zero_index = np.ones(self.board_size) * -1
-        if direction == 1:
+        if op == "up":
             mask = self.board[0] == 0
             first_zero_index = first_zero_index + mask
             self.move_up(first_zero_index)
-        elif direction == 2:
+        elif op == "down":
             mask = self.board[self.board_size - 1] == 0
             first_zero_index = first_zero_index + mask * self.board_size
             self.move_down(first_zero_index)
-        elif direction == 3:
+        elif op == "left":
             mask = self.board[:, 0] == 0
             first_zero_index = first_zero_index + mask
             self.move_left(first_zero_index)
-        elif direction == 4:
+        elif op == "right":
             mask = self.board[:, self.board_size - 1] == 0
             first_zero_index = first_zero_index + mask * self.board_size
             self.move_right(first_zero_index)

@@ -2,7 +2,7 @@ import torch
 from torch import nn, einsum
 import torch.nn.functional as func
 import math
-from LinearUtils import get_linear_layer
+from Model.LinearUtils import get_linear_layer
 
 
 class BaseAttention(nn.Module):

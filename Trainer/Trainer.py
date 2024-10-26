@@ -122,7 +122,7 @@ if __name__ == '__main__':
     # start training
     args = get_args()
 
-    train_set = SequenceDataset(directory="args.data_dir", num_chunks=5)
+    train_set = SequenceDataset(directory=args.data_dir, num_chunks=5)
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
     writer = SummaryWriter()

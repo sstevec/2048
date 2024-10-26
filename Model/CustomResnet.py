@@ -43,10 +43,10 @@ class ResNet(nn.Module):
 
         # Stacking residual blocks
         self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=1)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=1)
 
-        self.avgpool = nn.AdaptiveAvgPool1d(1)
+        self.avgpool = nn.AdaptiveAvgPool1d(3)
 
         # Final fully connected layer
         # input features should be the output channel of the last layer
@@ -78,8 +78,9 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
 
+        # 3 layers of resnet does not change sequence, pooling from 5 -> 3
         x = self.avgpool(x)
-        x = torch.flatten(x, 1)
+        x = x.transpose(1, 2)
         x = self.fc(x)
 
         return x

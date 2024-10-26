@@ -6,14 +6,10 @@ from tqdm import tqdm
 
 from Model.BaseTransformer import TransformerLayer
 from Model.CustomFNN import CustomFNN
-from Model.CustomLSTM import CustomLSTM
 from Model.CustomResnet import ResNet, ResidualBlock
 from Model.Model import ExpertLearningModel
 from Dataset import SequenceDataset
 from Config import get_args
-
-from Data.ChunkData import process_csv_in_chunks
-from Data.GenerateSeq import save_to_pt_file, process_csv_file
 
 import sys
 import os
@@ -33,26 +29,28 @@ class Trainer:
     def init_components(self):
         input_dim = 16  # 16 means observation only, 20 means with observation + action
         embedding_dim = 4  # embed so we don't input integers to the model
-        transformer_input_dim = input_dim * embedding_dim
+        flatten_embed_dim = input_dim * embedding_dim
         resnet_output_dim = 128
-        lstm_h_dim = 128
         output_dim = 4  # the probability for each action
 
         embedder = nn.Embedding(input_dim, embedding_dim)
 
-        transformer_dense_layer_dim = [transformer_input_dim, self.args.transformer_dense_layer_dim,
-                                       transformer_input_dim]
-        transformer = TransformerLayer(transformer_input_dim, self.device, self.args.transformer_qkv_dim,
-                                       transformer_dense_layer_dim,
-                                       self.args.transformer_num_head)
+        resnet = ResNet(ResidualBlock, [2, 2, 2], flatten_embed_dim, 64, resnet_output_dim)
 
-        resnet = ResNet(ResidualBlock, [2, 2, 2], transformer_input_dim, 64, resnet_output_dim)
+        transformer1_dense_layer_dim = [resnet_output_dim, self.args.transformer_dense_layer_dim,
+                                        resnet_output_dim]
+        transformer1 = TransformerLayer(resnet_output_dim, self.device, self.args.transformer_qkv_dim,
+                                        transformer1_dense_layer_dim,
+                                        self.args.transformer_num_head)
 
-        lstm = CustomLSTM(resnet_output_dim, 192, 1, lstm_h_dim, self.device)
+        transformer2_dense_layer_dim = [resnet_output_dim, 256, 512, 256, resnet_output_dim]
+        transformer2 = TransformerLayer(resnet_output_dim, self.device, self.args.transformer_qkv_dim,
+                                        transformer2_dense_layer_dim,
+                                        self.args.transformer_num_head)
 
-        fnn = CustomFNN([lstm_h_dim, 64, 16, output_dim], self.device)
+        fnn = CustomFNN([resnet_output_dim, 64, 16, output_dim], self.device)
 
-        final_model = ExpertLearningModel(embedder, transformer, resnet, lstm, fnn, self.device, self.args.batch_size)
+        final_model = ExpertLearningModel(embedder, transformer1, resnet, transformer2, fnn)
 
         return final_model
 
@@ -107,22 +105,10 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-    # chunk the dataset into smaller files
-    # input_file = './Data/HugeDatasetReach4096.csv'
-    # process_csv_in_chunks(input_file)
-    #
-    # # process the chunked file into sequence data for training
-    # for i in range(1, 50):
-    #     input_file = f'./Data/episodes_chunk_{i}.csv'
-    #     sequences, labels = process_csv_file(input_file)
-    #     save_to_pt_file(sequences, labels, f'./Data/chunk_{i}.pt')
-
     # start training
     args = get_args()
 
-    train_set = SequenceDataset(directory=args.data_dir, num_chunks=5)
+    train_set = SequenceDataset(directory=args.data_dir, num_chunks=1)
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
     writer = SummaryWriter()

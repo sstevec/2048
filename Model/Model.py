@@ -1,46 +1,34 @@
 import torch.nn as nn
 
 class ExpertLearningModel(nn.Module):
-    def __init__(self, embedder, transformer, resnet, lstm, fnn, device, batch_size):
+    def __init__(self, embedder, transformer1, resnet, transformer2, fnn):
         super(ExpertLearningModel, self).__init__()
         self.embedding = embedder
-        self.transformer = transformer
         self.resnet = resnet
-        self.lstm = lstm
-
-        lstm_hidden, lstm_c = self.lstm.init_hidden(batch_size)
+        self.transformer1 = transformer1
+        self.transformer2 = transformer2
 
         self.fnn = fnn
 
-        self.device = device
-
-        self.lstm_hidden = lstm_hidden.to(device)
-        self.lstm_c = lstm_c.to(device)
-
-
-    def forward(self, x, is_train=True):
+    def forward(self, x):
         # input shape [batch, sequence, input_dim]
         x = self.embedding(x)
         # output of embedding [batch, sequence, input_dim, embed_dim]
         x = x.reshape(x.shape[0], x.shape[1], -1)
         # get [batch, sequence, input_dim * embed_dim]
-
-        # input shape [batch, sequence, new_input_dim]
-        x = self.transformer(x)
-        # output of transformer [batch, sequence, new_input_dim]
-
         x = x.transpose(1, 2)
         # resnet take [batch, new_input_dim, sequence]
         x = self.resnet(x)
         # output shape is [batch, output_dim_resnet]
 
-        x, hidden, c = self.lstm(x, (self.lstm_hidden, self.lstm_c))
+        # input shape [batch, sequence, new_input_dim]
+        x = self.transformer1(x)
 
-        # only update the memory when it is training
-        if is_train:
-            self.lstm_hidden = hidden.clone().detach()
-            self.lstm_c = c.clone().detach()
+        x = self.transformer2(x)
+        # the output here is [batch, seq, hidden_dim]
 
-        x = self.fnn(x)
+        # we only interest in the last sequence, as the decision is primary made based on this one,
+        # so we dropped the previous steps and only decode the last one
+        x = self.fnn(x[:, -1, :])
 
         return x

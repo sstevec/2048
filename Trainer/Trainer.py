@@ -104,14 +104,14 @@ class Trainer:
 
 if __name__ == '__main__':
     # chunk the dataset into smaller files
-    input_file = 'HugeDatasetReach4096.csv'
+    input_file = './Data/HugeDatasetReach4096.csv'
     process_csv_in_chunks(input_file)
 
     # process the chunked file into sequence data for training
     for i in range(1, 50):
-        input_file = f'episodes_chunk_{i}.csv'
+        input_file = f'./Data/episodes_chunk_{i}.csv'
         sequences, labels = process_csv_file(input_file)
-        save_to_pt_file(sequences, labels, f'chunk_{i}.pt')
+        save_to_pt_file(sequences, labels, f'./Data/chunk_{i}.pt')
 
     # start training
     args = get_args()

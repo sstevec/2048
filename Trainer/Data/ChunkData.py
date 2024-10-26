@@ -37,9 +37,9 @@ def process_csv_in_chunks(input_file, chunk_size=10000, episodes_per_chunk=1000)
                     current_episode = []
                     episode_counter += 1
 
-                    # Step 5: Save episodes every 1000 episodes to avoid memory overload
+                    # Save episodes every 1000 episodes to avoid memory overload
                     if episode_counter == episodes_per_chunk:
-                        output_file = f'episodes_chunk_{chunk_counter}.csv'
+                        output_file = f'./Data/episodes_chunk_{chunk_counter}.csv'
 
                         # Ensure that numeric data is saved as int8, and the marker is saved correctly
                         chunk_data = [np.array(episode, dtype=object) for episode in episodes]
@@ -59,7 +59,7 @@ def process_csv_in_chunks(input_file, chunk_size=10000, episodes_per_chunk=1000)
             current_episode = []
 
     if episodes:
-        output_file = f'episodes_chunk_{chunk_counter}.csv'
+        output_file = f'./Data/episodes_chunk_{chunk_counter}.csv'
 
         # Ensure that numeric data is saved as int8, and the marker is saved correctly
         chunk_data = [np.array(episode, dtype=object) for episode in episodes]

@@ -15,6 +15,10 @@ from Config import get_args
 from Data.ChunkData import process_csv_in_chunks
 from Data.GenerateSeq import save_to_pt_file, process_csv_file
 
+import sys
+import os
+
+
 class Trainer:
     def __init__(self, args):
         self.args = args
@@ -103,20 +107,22 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    # chunk the dataset into smaller files
-    input_file = './Data/HugeDatasetReach4096.csv'
-    process_csv_in_chunks(input_file)
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    # process the chunked file into sequence data for training
-    for i in range(1, 50):
-        input_file = f'./Data/episodes_chunk_{i}.csv'
-        sequences, labels = process_csv_file(input_file)
-        save_to_pt_file(sequences, labels, f'./Data/chunk_{i}.pt')
+    # chunk the dataset into smaller files
+    # input_file = './Data/HugeDatasetReach4096.csv'
+    # process_csv_in_chunks(input_file)
+    #
+    # # process the chunked file into sequence data for training
+    # for i in range(1, 50):
+    #     input_file = f'./Data/episodes_chunk_{i}.csv'
+    #     sequences, labels = process_csv_file(input_file)
+    #     save_to_pt_file(sequences, labels, f'./Data/chunk_{i}.pt')
 
     # start training
     args = get_args()
 
-    train_set = SequenceDataset(directory="./Data", num_chunks=5)
+    train_set = SequenceDataset(directory="args.data_dir", num_chunks=5)
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
     writer = SummaryWriter()

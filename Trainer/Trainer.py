@@ -54,11 +54,11 @@ class Trainer:
 
         return final_model
 
-    def train_model(self, dataloader, writer):
+    def train_model(self, dataloader, writer, start_epoch=0):
         # move model to GPU
         self.model.to(self.device)
 
-        for epoch in range(self.args.num_epochs):
+        for epoch in range(start_epoch, self.args.num_epochs):
             self.model.train()  # Set model to training mode
 
             epoch_loss = 0.0
@@ -103,6 +103,29 @@ class Trainer:
             # save the check point every epoch
             torch.save(self.model.state_dict(), f'{self.args.checkpoint_dir}/{epoch}.pth')
 
+    def load_latest_checkpoint(self):
+        # Get a list of all checkpoint files in the folder
+        checkpoint_files = [f for f in os.listdir(self.args.checkpoint_dir) if f.endswith('.pth')]
+
+        if not checkpoint_files:
+            print("No checkpoints found in the folder.")
+            return 0
+
+        # Extract epoch numbers and find the largest one
+        epoch_numbers = [int(f.split('.')[0]) for f in checkpoint_files]
+        latest_epoch = max(epoch_numbers)
+
+        # Construct the filename of the latest checkpoint
+        latest_checkpoint = f"{latest_epoch}.pth"
+        latest_checkpoint_path = os.path.join(self.args.checkpoint_dir, latest_checkpoint)
+
+        # Load the checkpoint
+        checkpoint = torch.load(latest_checkpoint_path)
+
+        # Report the latest epoch number
+        self.model.load_state_dict(checkpoint)
+        print(f"Loaded checkpoint from epoch {latest_epoch}.")
+        return latest_epoch
 
 if __name__ == '__main__':
     # start training
@@ -114,6 +137,9 @@ if __name__ == '__main__':
     writer = SummaryWriter()
 
     trainer = Trainer(args)
-    trainer.train_model(train_loader, writer)
+
+    # load model
+    last_epoch_num = trainer.load_latest_checkpoint()
+    trainer.train_model(train_loader, writer, last_epoch_num)
 
     writer.close()

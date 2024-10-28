@@ -18,10 +18,11 @@ class Runner():
 
     def generate_next_action(self):
         current_state = self.env.get_current_state()
-        previous_state = self.observation[self.next_index:self.next_index + 5, :]
-        input_state = np.concatenate((previous_state, np.expand_dims(current_state, axis=0)), axis=0)
+        np.append(self.observation, current_state)
 
-        output = self.trainer.model(torch.tensor(input_state, device=self.device, dtype=torch.long).unsqueeze(0))
+        seq = self.observation[self.next_index:self.next_index + 6, :]
+
+        output = self.trainer.model(torch.tensor(seq, device=self.device, dtype=torch.long).unsqueeze(0))
         index = torch.argmax(output).item()
 
         self.env.step(index)
@@ -43,7 +44,17 @@ if __name__ == '__main__':
     env.show()
 
     runner = Runner(trainer, env)
+
+    last_score = 0
+    stack_counter = 0
     for i in range(1000):
         runner.generate_next_action()
         if not env.check_alive():
             break
+        if env.score == last_score:
+            stack_counter += 1
+            if stack_counter > 5:
+                break
+        else:
+            last_score = env.score
+            stack_counter = 0

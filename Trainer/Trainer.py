@@ -132,7 +132,7 @@ if __name__ == '__main__':
     args = get_args()
 
     train_set = SequenceDataset(directory=args.data_dir, num_chunks=args.num_chunks)
-    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, drop_last=True)
+    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False)
 
     writer = SummaryWriter()
 

@@ -87,3 +87,8 @@ def save_to_pt_file(sequences, labels, output_file):
     }
     torch.save(data, output_file)
     print(f"Saved processed data to {output_file}")
+
+
+for i in range(22, 27):
+    sequences, labels = process_csv_file("episodes_chunk_" + str(i) + ".csv")
+    save_to_pt_file(sequences, labels, f"chunk_{i}.pt")

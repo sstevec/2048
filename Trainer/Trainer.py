@@ -3,7 +3,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-
+import torch.nn.functional as F
 from Model.BaseTransformer import TransformerLayer
 from Model.CustomFNN import CustomFNN
 from Model.CustomResnet import ResNet, ResidualBlock
@@ -23,8 +23,10 @@ class Trainer:
 
         self.model = self.init_components()
 
-        self.criterion = nn.CrossEntropyLoss(ignore_index=-1)  # Ignore padded labels (-1) during loss calculation
         self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
+
+        self.alpha = torch.tensor([1.0, 3.0, 15.0, 3.0]).to(self.device)    # weight for the action loss, harder penalty on rare moves
+        self.gamma = 2.0
 
     def init_components(self):
         input_dim = 16  # 16 means observation only, 20 means with observation + action
@@ -54,6 +56,12 @@ class Trainer:
 
         return final_model
 
+    def focal_loss(self, pred, target):
+        ce_loss = F.cross_entropy(pred, target, reduction='none', weight=self.alpha, ignore_index=-1)
+        pt = torch.exp(-ce_loss)
+        focal_loss = (1 - pt) ** self.gamma * ce_loss
+        return focal_loss.mean()
+
     def train_model(self, dataloader, writer, start_epoch=0):
         # move model to GPU
         self.model.to(self.device)
@@ -62,6 +70,7 @@ class Trainer:
             self.model.train()  # Set model to training mode
 
             epoch_loss = 0.0
+            total_correct = 0
             num_batches = len(dataloader)
 
             with tqdm(dataloader, unit="batch") as tepoch:
@@ -81,7 +90,7 @@ class Trainer:
                     labels = labels[:, -1].long()  # Shape: [batch_size * 5]
 
                     # Compute the loss, ignoring padding (-1 labels)
-                    loss = self.criterion(outputs, labels)
+                    loss = self.focal_loss(outputs, labels)
 
                     # Backward pass and optimization
                     loss.backward()
@@ -93,12 +102,18 @@ class Trainer:
                     # Update tqdm description with the current batch loss
                     tepoch.set_postfix(batch_loss=loss.item())
 
+                    pred = outputs.argmax(dim=1)
+                    total_correct += pred.eq(labels.view_as(pred)).sum().item()
+
                 # Calculate average loss for the epoch
                 avg_epoch_loss = epoch_loss / num_batches
                 print(f"Epoch [{epoch + 1}/{self.args.num_epochs}], Loss: {avg_epoch_loss:.4f}")
 
                 # Log the epoch loss to TensorBoard
                 writer.add_scalar('Loss/train', avg_epoch_loss, epoch)
+
+                total_acc = total_correct / num_batches / self.args.batch_size
+                print(f"Epoch [{epoch + 1}/{self.args.num_epochs}], Acc: {total_acc:.4f}")
 
             # save the check point every epoch
             torch.save(self.model.state_dict(), f'{self.args.checkpoint_dir}/{epoch}.pth')
@@ -127,6 +142,12 @@ class Trainer:
         print(f"Loaded checkpoint from epoch {latest_epoch}.")
         return latest_epoch
 
+    def load_checkpoint(self, path):
+        checkpoint = torch.load(path)
+        self.model.load_state_dict(checkpoint)
+        print(f"Loaded checkpoint from {path}")
+
+
 if __name__ == '__main__':
     # start training
     args = get_args()
@@ -139,7 +160,9 @@ if __name__ == '__main__':
     trainer = Trainer(args)
 
     # load model
-    last_epoch_num = trainer.load_latest_checkpoint()
+    # last_epoch_num = trainer.load_latest_checkpoint()
+    last_epoch_num = 0
+    trainer.load_checkpoint("./checkpoint/94.pth")
     trainer.train_model(train_loader, writer, last_epoch_num)
 
     writer.close()

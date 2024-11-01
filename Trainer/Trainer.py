@@ -10,7 +10,7 @@ from Model.CustomResnet import ResNet, ResidualBlock
 from Model.Model import ExpertLearningModel
 from Dataset import SequenceDataset
 from Config import get_args
-
+from Model.Util import precompute_2d_positional_encoding
 import sys
 import os
 
@@ -25,19 +25,23 @@ class Trainer:
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
 
-        self.alpha = torch.tensor([1.0, 3.0, 15.0, 3.0]).to(self.device)    # weight for the action loss, harder penalty on rare moves
+        self.alpha = torch.tensor([1.0, 3.0, 15.0, 3.0]).to(
+            self.device)  # weight for the action loss, harder penalty on rare moves
         self.gamma = 2.0
 
     def init_components(self):
         input_dim = 16  # 16 means observation only, 20 means with observation + action
-        embedding_dim = 4  # embed so we don't input integers to the model
-        flatten_embed_dim = input_dim * embedding_dim
-        resnet_output_dim = 128
+        embedding_dim = 32  # embed so we don't input integers to the model
+        resnet_output_dim = 256
+        resnet_output_shape = 2
         output_dim = 4  # the probability for each action
 
         embedder = nn.Embedding(input_dim, embedding_dim)
 
-        resnet = ResNet(ResidualBlock, [2, 2, 2], flatten_embed_dim, 64, resnet_output_dim)
+        resnet = ResNet(ResidualBlock, [2, 2, 2], embedding_dim, 64, resnet_output_dim)
+
+        positional_encoding = precompute_2d_positional_encoding(resnet_output_dim, resnet_output_shape,
+                                                                resnet_output_shape).to(self.device)
 
         transformer1_dense_layer_dim = [resnet_output_dim, self.args.transformer_dense_layer_dim,
                                         resnet_output_dim]
@@ -45,14 +49,18 @@ class Trainer:
                                         transformer1_dense_layer_dim,
                                         self.args.transformer_num_head)
 
-        transformer2_dense_layer_dim = [resnet_output_dim, 256, 512, 256, resnet_output_dim]
+        transformer2_dense_layer_dim = [resnet_output_dim, resnet_output_dim * 2, resnet_output_dim * 4,
+                                        resnet_output_dim]
         transformer2 = TransformerLayer(resnet_output_dim, self.device, self.args.transformer_qkv_dim,
                                         transformer2_dense_layer_dim,
                                         self.args.transformer_num_head)
 
-        fnn = CustomFNN([resnet_output_dim, 64, 16, output_dim], self.device)
+        fnn = CustomFNN(
+            [resnet_output_dim * resnet_output_shape * resnet_output_shape, resnet_output_dim * 2,
+             resnet_output_dim, 64, output_dim],
+            self.device)
 
-        final_model = ExpertLearningModel(embedder, transformer1, resnet, transformer2, fnn)
+        final_model = ExpertLearningModel(embedder, resnet, positional_encoding, transformer1, transformer2, fnn)
 
         return final_model
 
@@ -83,7 +91,7 @@ class Trainer:
 
                     self.optimizer.zero_grad()
 
-                    outputs = self.model(inputs.to(torch.int32))  # outputs shape: [batch_size, 5, 4]
+                    outputs = self.model(inputs[:, -1].to(torch.int32))  # outputs shape: [batch_size, 5, 4]
                     # Shape: [batch_size, 4]
 
                     # since we are predicting the action for last step, we only need the label for last one
@@ -162,7 +170,7 @@ if __name__ == '__main__':
     # load model
     # last_epoch_num = trainer.load_latest_checkpoint()
     last_epoch_num = 0
-    trainer.load_checkpoint("./checkpoint/94.pth")
+    # trainer.load_checkpoint("./checkpoint/94.pth")
     trainer.train_model(train_loader, writer, last_epoch_num)
 
     writer.close()

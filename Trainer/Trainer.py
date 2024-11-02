@@ -7,9 +7,9 @@ import torch.nn.functional as F
 from Model.BaseTransformer import TransformerLayer
 from Model.CustomFNN import CustomFNN
 from Model.CustomResnet import ResNet, ResidualBlock
-from Model.Model import ExpertLearningModel
-from Dataset import SequenceDataset
-from Config import get_args
+from Model.MyModel import ExpertLearningModel
+from .Dataset import SequenceDataset
+from .Config import get_args
 
 import sys
 import os

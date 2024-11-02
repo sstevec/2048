@@ -1,7 +1,7 @@
 import torch
 
-from Config import get_args
-from Trainer import Trainer
+from .Config import get_args
+from .Trainer import Trainer
 from Env.game2048 import Game2048
 import numpy as np
 

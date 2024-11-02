@@ -7,9 +7,9 @@ import torch.nn.functional as F
 from Model.BaseTransformer import TransformerLayer
 from Model.CustomFNN import CustomFNN
 from Model.CustomResnet import ResNet, ResidualBlock
-from Model.Model import ExpertLearningModel
-from Dataset import SequenceDataset
-from Config import get_args
+from Model.MyModel import ExpertLearningModel
+from .Dataset import SequenceDataset
+from .Config import get_args
 from Model.Util import precompute_2d_positional_encoding
 import sys
 import os
@@ -57,8 +57,7 @@ class Trainer:
 
         fnn = CustomFNN(
             [resnet_output_dim * resnet_output_shape * resnet_output_shape, resnet_output_dim * 2,
-             resnet_output_dim, 64, output_dim],
-            self.device)
+             resnet_output_dim, 64, output_dim], self.device)
 
         final_model = ExpertLearningModel(embedder, resnet, positional_encoding, transformer1, transformer2, fnn)
 
@@ -91,11 +90,11 @@ class Trainer:
 
                     self.optimizer.zero_grad()
 
-                    outputs = self.model(inputs[:, -1].to(torch.int32))  # outputs shape: [batch_size, 5, 4]
+                    outputs = self.model(inputs[:, -1].to(torch.int32))  # outputs shape: [batch_size, 4]
                     # Shape: [batch_size, 4]
 
                     # since we are predicting the action for last step, we only need the label for last one
-                    labels = labels[:, -1].long()  # Shape: [batch_size * 5]
+                    labels = labels[:, -1].long()  # Shape: [batch_size, 1]
 
                     # Compute the loss, ignoring padding (-1 labels)
                     loss = self.focal_loss(outputs, labels)

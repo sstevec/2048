@@ -1,7 +1,7 @@
 import numpy as np
 from torch.utils.data import DataLoader
 
-from Dataset import SequenceDataset
+from .Dataset import SequenceDataset
 
 op_order = ['up', 'right', 'down', 'left']
 

@@ -1,7 +1,7 @@
 import torch
 
-from .Config import get_args
-from .Trainer import Trainer
+from Trainer.Config import get_args
+from Trainer.MyTrainer  import Trainer
 from Env.game2048 import Game2048
 import numpy as np
 
@@ -17,13 +17,15 @@ class Runner():
         self.trainer.model.to(self.device)
 
     def generate_next_action(self):
-        current_state = self.env.get_current_state()
-        np.append(self.observation, current_state)
+        current_state = self.env.get_current_state().reshape(1, 16)
+        self.observation = np.vstack((self.observation, current_state))
 
         seq = self.observation[self.next_index:self.next_index + 6, :]
 
         output = self.trainer.model(torch.tensor(seq, device=self.device, dtype=torch.long).unsqueeze(0))
         index = torch.argmax(output).item()
+
+        self.next_index += 1
 
         self.env.step(index)
         self.env.show()
@@ -38,7 +40,7 @@ if __name__ == '__main__':
 
     # load model
     # last_epoch_num = trainer.load_latest_checkpoint()
-    trainer.load_checkpoint("./checkpoint/49.pth")
+    trainer.load_checkpoint("./checkpoint/100_no_shuffle.pth")
 
     env = Game2048(fill_percent=0.3)
 
@@ -54,7 +56,7 @@ if __name__ == '__main__':
             break
         if env.score == last_score:
             stack_counter += 1
-            if stack_counter > 5:
+            if stack_counter > 15:
                 break
         else:
             last_score = env.score

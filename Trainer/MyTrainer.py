@@ -8,8 +8,8 @@ from Model.BaseTransformer import TransformerLayer
 from Model.CustomFNN import CustomFNN
 from Model.CustomResnet import ResNet, ResidualBlock
 from Model.MyModel import ExpertLearningModel
-from .Dataset import SequenceDataset
-from .Config import get_args
+from Trainer.Dataset import SequenceDataset
+from Trainer.Config import get_args
 
 import sys
 import os

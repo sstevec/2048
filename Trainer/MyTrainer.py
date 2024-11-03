@@ -25,7 +25,7 @@ class Trainer:
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
 
-        self.alpha = torch.tensor([1.0, 3.0, 15.0, 3.0]).to(
+        self.alpha = torch.tensor([1.0, 2.0, 10.0, 2.0]).to(
             self.device)  # weight for the action loss, harder penalty on rare moves
         self.gamma = 2.0
 

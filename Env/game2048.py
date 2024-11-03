@@ -231,5 +231,5 @@ class Game2048:
         self.last_op = -1
         self.merged_count = 0
 
-    def get_board(self):
+    def get_current_state(self):
         return self.board.flatten()

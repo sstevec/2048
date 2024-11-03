@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from Trainer import get_args, SequenceDataset
-from Trainer.Trainer import Trainer
+from Trainer.MyTrainer import Trainer
 
 if __name__ == '__main__':
     # start training

@@ -28,7 +28,9 @@ class Game2048:
     def step(self, direction):
         if direction < 0 or direction > 3:
             print("Error: Invalid Direction!")
-            return False
+            return None, 0, False
+
+        old_score = self.score
 
         self.last_op = direction
         op = self.op_order[direction]
@@ -53,7 +55,9 @@ class Game2048:
             print("Error: Wrong direction input !")
 
         self.add_new_entry()
-        return self.check_alive()
+
+        reward = self.score - old_score
+        return self.get_current_state(), reward, not self.check_alive()
 
     def move_up(self, first_zero_index):
         for row in range(1, self.board_size):
@@ -230,6 +234,7 @@ class Game2048:
         self.score = 0
         self.last_op = -1
         self.merged_count = 0
+        return self.get_current_state()
 
     def get_current_state(self):
         return self.board.flatten()

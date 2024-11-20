@@ -1,6 +1,6 @@
 import torch
 
-from Trainer.Config import get_args
+from Trainer.Config import get_bc_args
 from Trainer.MyTrainer import Trainer
 from Env.game2048 import Game2048
 import numpy as np
@@ -12,11 +12,12 @@ class Runner():
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.trainer.model.to(self.device)
+        self.trainer.model.eval()
 
     def generate_next_action(self):
         current_state = self.env.get_current_state()
 
-        output = self.trainer.model(torch.tensor(current_state, device=self.device, dtype=torch.long).unsqueeze(0))
+        output, _ = self.trainer.model(torch.tensor(current_state, device=self.device, dtype=torch.long).unsqueeze(0))
         index = torch.argmax(output).item()
 
         self.env.step(index)
@@ -26,13 +27,13 @@ class Runner():
 
 if __name__ == '__main__':
     # start training
-    args = get_args()
+    args = get_bc_args()
 
     trainer = Trainer(args)
 
     # load model
     # last_epoch_num = trainer.load_latest_checkpoint()
-    trainer.load_checkpoint("./checkpoint/12.pth")
+    trainer.load_checkpoint("./checkpoint/policy_19.pth")
 
     env = Game2048(fill_percent=0.3)
 

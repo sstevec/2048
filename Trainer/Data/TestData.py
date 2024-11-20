@@ -15,7 +15,7 @@ def process_row(row):
     return data_4x4, label
 
 # Load the chunked CSV file
-chunk_data = pd.read_csv('episodes_chunk_1.csv')
+chunk_data = pd.read_csv('original_data/episodes_chunk_1.csv')
 
 # Initialize a list to store episodes
 loaded_episodes = []

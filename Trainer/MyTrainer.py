@@ -9,7 +9,7 @@ from Model.CustomFNN import CustomFNN
 from Model.CustomResnet import ResNet, ResidualBlock
 from Model.MyModel import ExpertLearningModel
 from Trainer.Dataset import SequenceDataset
-from Trainer.Config import get_args
+from Trainer.Config import get_bc_args
 from Model.Util import precompute_2d_positional_encoding
 import sys
 import os
@@ -57,9 +57,13 @@ class Trainer:
 
         fnn = CustomFNN(
             [resnet_output_dim * resnet_output_shape * resnet_output_shape, resnet_output_dim * 2,
-             resnet_output_dim, 64, output_dim], self.device)
+             resnet_output_dim, 64], self.device)
 
-        final_model = ExpertLearningModel(embedder, resnet, positional_encoding, transformer1, transformer2, fnn)
+        actor_head = nn.Linear(64, output_dim)
+        critic_head = nn.Linear(64, 1)
+
+        final_model = ExpertLearningModel(embedder, resnet, positional_encoding, transformer1, transformer2, fnn,
+                                          actor_head, critic_head)
 
         return final_model
 
@@ -90,7 +94,7 @@ class Trainer:
 
                     self.optimizer.zero_grad()
 
-                    outputs = self.model(inputs[:, -1].to(torch.int32))  # outputs shape: [batch_size, 4]
+                    outputs, _ = self.model(inputs[:, -1].to(torch.int32))  # outputs shape: [batch_size, 4]
                     # Shape: [batch_size, 4]
 
                     # since we are predicting the action for last step, we only need the label for last one
@@ -157,7 +161,7 @@ class Trainer:
 
 if __name__ == '__main__':
     # start training
-    args = get_args()
+    args = get_bc_args()
 
     train_set = SequenceDataset(directory=args.data_dir, num_chunks=args.num_chunks)
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False)

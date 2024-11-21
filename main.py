@@ -1,24 +1,27 @@
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-
-from Trainer import get_bc_args, SequenceDataset
+from Trainer import Config
 from Trainer.MyTrainer import Trainer
+from Env.game2048 import Game2048
+from Model.MyDiscriminator import Discriminator
+from Trainer.GAIL import GAIL
+from Trainer.Dataset import SequenceDataset
 
 if __name__ == '__main__':
-    # start training
-    args = get_bc_args()
+    # get args
+    args = Config.get_gail_args()
 
-    train_set = SequenceDataset(directory=args.data_dir, num_chunks=args.num_chunks)
-    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False)
-
-    writer = SummaryWriter()
-
+    # get policy model
     trainer = Trainer(args)
 
-    # load model
-    # last_epoch_num = trainer.load_latest_checkpoint()
-    last_epoch_num = 0
-    # trainer.load_checkpoint("./checkpoint/94.pth")
-    trainer.train_model(train_loader, writer, last_epoch_num)
+    # get game env
+    env = Game2048(fill_percent=0.3)
 
-    writer.close()
+    # get discriminator model
+    disc_model = Discriminator(16, 4)
+
+    # get the GAIL trainer
+    gail_trainer = GAIL(args, env, trainer, disc_model)
+
+    # load the expert data
+    expert_dataset = SequenceDataset("./Data/processed_data", 1, "chunk_", ".pt")
+
+    gail_trainer.train(expert_dataset)

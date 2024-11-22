@@ -4,11 +4,11 @@ import torch.optim as optim
 import torch.nn.functional as F
 from tqdm import tqdm
 
-import Config
+from Trainer import Config
 from Env import Game2048
-from MyTrainer import Trainer
+from Trainer.MyTrainer import Trainer
 from Model.MyDiscriminator import Discriminator
-from Dataset import SequenceDataset
+from Trainer.Dataset import SequenceDataset
 
 class GAIL:
     def __init__(self, args, env, policy_wrapper, discriminator_model):
@@ -111,7 +111,7 @@ class GAIL:
                 total_loss.backward()
                 self.policy_optimizer.step()
 
-            if (epoch + 1) % 250 == 0:
+            if (epoch + 1) % self.args.save_freq == 0:
                 print(f"Epoch {epoch + 1}/{self.args.num_epochs} - Discriminator Loss: {disc_total_loss}")
                 torch.save(self.policy_network.state_dict(), f'{self.args.checkpoint_dir}/policy_{epoch}.pth')
                 torch.save(self.discriminator_model.state_dict(), f'{self.args.checkpoint_dir}/discriminator_{epoch}.pth')

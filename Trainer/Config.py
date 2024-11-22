@@ -38,6 +38,7 @@ def get_gail_args():
     parser.add_argument('--data_dir', type=str, default="./Data/processed_data", help='path for expert data')
 
     parser.add_argument('--checkpoint_dir', type=str, default="./checkpoint", help='path for checkpoint')
+    parser.add_argument('--save_freq', type=int, default=250, help='how often to save checkpoint')
 
     # transformer config
     parser.add_argument('--transformer_dense_layer_dim', type=int, default=128)

@@ -1,4 +1,4 @@
-from Trainer import Config
+from Trainer.Config import get_gail_args
 from Trainer.MyTrainer import Trainer
 from Env.game2048 import Game2048
 from Model.MyDiscriminator import Discriminator
@@ -7,7 +7,7 @@ from Trainer.Dataset import SequenceDataset
 
 if __name__ == '__main__':
     # get args
-    args = Config.get_gail_args()
+    args = get_gail_args()
 
     # get policy model
     trainer = Trainer(args)
@@ -22,6 +22,6 @@ if __name__ == '__main__':
     gail_trainer = GAIL(args, env, trainer, disc_model)
 
     # load the expert data
-    expert_dataset = SequenceDataset("./Data/processed_data", 1, "chunk_", ".pt")
+    expert_dataset = SequenceDataset(args.data_dir, 1, "chunk_", ".pt")
 
     gail_trainer.train(expert_dataset)

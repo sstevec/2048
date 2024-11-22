@@ -20,18 +20,14 @@ def show(board, action):
         out_str += "|\n"
     out_str += ("-" * (4 * indent_len + 2))
     print(out_str)
-    print(f"last operation: {op_order[action]}")
+    print(f"decision: {op_order[action]}")
 
 if __name__ == '__main__':
-    train_set = SequenceDataset(directory="./Data", num_chunks=1)
+    train_set = SequenceDataset(directory="./Data/processed_data", num_chunks=1)
     train_loader = DataLoader(train_set, batch_size=1, shuffle=False)
-    break_counter = 0
-    for data, label in train_loader:
-        label_last = label[0, -1].long()
-        data_last = data[0, -1].long()
-        show(data_last.reshape(4, 4).numpy(), label_last)
 
-        if label[0, -2] == -1:
-            break_counter += 1
-            if break_counter > 1:
-                break
+    for data, label in train_loader:
+        for index, data_i in enumerate(data[0]):
+            label_last = label[0][index][0].long()
+            show(data_i.reshape(4, 4).numpy(), label_last)
+        break

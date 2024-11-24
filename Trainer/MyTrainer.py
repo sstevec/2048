@@ -57,7 +57,7 @@ class Trainer:
 
         fnn = CustomFNN(
             [resnet_output_dim * resnet_output_shape * resnet_output_shape, resnet_output_dim * 2,
-             resnet_output_dim, 64], self.device)
+             resnet_output_dim, 64], self.device, drop_rate=0.2)
 
         actor_head = nn.Linear(64, output_dim)
         critic_head = nn.Linear(64, 1)

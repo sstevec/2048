@@ -27,7 +27,9 @@ class SequenceDataset(Dataset):
         # Return a single sequence and its corresponding label
         return self.data[idx], self.labels[idx]
 
-    def random_sample(self, k):
+    def random_sample(self, k, max_ep_len):
+        max_ep_len = max(max_ep_len, 50)
+
         # Shuffle the list to ensure random selection
         total_length = 0
         selected_data = []
@@ -37,10 +39,14 @@ class SequenceDataset(Dataset):
         while total_length <= k:
             # Randomly pick an index from the list that hasn't been selected yet
             index = random.randint(0, len(self.data) - 1)
+            selected_ep = self.data[index]
+            if len(selected_ep) < 1000 or len(selected_ep) < max_ep_len:
+                # it is a very small expert episode, likely incorrect
+                continue
 
             if index not in selected_indices:
-                _data = self.data[index]
-                _label = self.labels[index]
+                _data = self.data[index][:max_ep_len]
+                _label = self.labels[index][:max_ep_len]
 
                 total_length += len(_data)
 

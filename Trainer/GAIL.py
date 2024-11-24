@@ -10,6 +10,7 @@ from Trainer.MyTrainer import Trainer
 from Model.MyDiscriminator import Discriminator
 from Trainer.Dataset import SequenceDataset
 
+
 class GAIL:
     def __init__(self, args, env, policy_wrapper, discriminator_model):
         self.args = args
@@ -29,6 +30,8 @@ class GAIL:
         for epoch in tqdm(range(self.args.num_epochs), desc="Epochs", position=0):
             # Step 1: Generate agent's trajectories
             self.policy_network.eval()
+
+            best_score = 0
             agent_obs, agent_actions = [], []
             obs = self.env.reset()
             for _ in range(self.args.self_play_steps):
@@ -45,6 +48,9 @@ class GAIL:
 
                 obs = next_obs
                 if done:
+                    score = self.env.score
+                    if score > best_score:
+                        best_score = score
                     obs = self.env.reset()
 
             # Convert lists to tensors
@@ -54,18 +60,19 @@ class GAIL:
             # Step 2: Train Discriminator
             self.discriminator_model.train()
             disc_total_loss = 0
+            disc_train_steps = 0
 
-            expert_obs, expert_actions = expert_dataset.random_sample(self.args.self_play_steps)
+            expert_obs, expert_actions = expert_dataset.random_sample(self.args.self_play_steps, int(best_score // 2))
             for _ in range(self.args.disc_train_epochs):
                 # Sample expert and agent batches
                 expert_indices = torch.randint(0, len(expert_obs), (self.args.batch_size,))
                 agent_indices = torch.randint(0, len(agent_obs), (self.args.batch_size,))
-
                 expert_obs_batch = expert_obs[expert_indices].to(self.device)
                 expert_actions_batch = expert_actions[expert_indices].squeeze()
                 agent_obs_batch = agent_obs[agent_indices].to(self.device)
                 agent_actions_batch = agent_actions[agent_indices]
 
+                # One-hot encoding actions
                 expert_actions_batch = F.one_hot(expert_actions_batch, num_classes=4).float().to(self.device)
                 agent_actions_batch = F.one_hot(agent_actions_batch, num_classes=4).float().to(self.device)
 
@@ -73,19 +80,44 @@ class GAIL:
                 expert_preds = self.discriminator_model(expert_obs_batch, expert_actions_batch)
                 agent_preds = self.discriminator_model(agent_obs_batch, agent_actions_batch)
 
-                # Discriminator loss: maximize log D(expert) + log(1 - D(agent))
-                expert_loss = F.binary_cross_entropy(expert_preds, torch.ones_like(expert_preds, device=self.device))
-                agent_loss = F.binary_cross_entropy(agent_preds, torch.zeros_like(agent_preds, device=self.device))
+                # Label smoothing
+                smooth_labels_expert = torch.full_like(expert_preds, 0.9, device=self.device)
+                smooth_labels_agent = torch.full_like(agent_preds, 0.1, device=self.device)
+
+                # Discriminator loss
+                expert_loss = F.binary_cross_entropy_with_logits(expert_preds, smooth_labels_expert)
+                agent_loss = F.binary_cross_entropy_with_logits(agent_preds, smooth_labels_agent)
                 disc_loss = expert_loss + agent_loss
 
-                # Update discriminator
+                # Gradient penalty
+                mixed_obs = torch.cat([expert_obs_batch, agent_obs_batch], dim=0)
+                mixed_actions = torch.cat([expert_actions_batch, agent_actions_batch], dim=0)
+                mixed_preds = self.discriminator_model(mixed_obs, mixed_actions)
+                gradients = torch.autograd.grad(
+                    outputs=mixed_preds.sum(),
+                    inputs=[mixed_obs, mixed_actions],
+                    create_graph=True
+                )
+                gradient_norm = torch.cat([grad.norm(2, dim=-1) for grad in gradients], dim=-1).mean()
+                gradient_penalty = self.args.gradient_penalty_weight * (gradient_norm - 1).pow(2).mean()
+                disc_loss += gradient_penalty
+
+                # Backpropagation and optimization
                 self.disc_optimizer.zero_grad()
                 disc_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.discriminator_model.parameters(), max_norm=1.0)
                 self.disc_optimizer.step()
 
+                # Track total loss for logging
                 disc_total_loss += disc_loss.item()
+
+                disc_train_steps += 1
+                # if disc loss is too small, we will only train it for 1 step, and skip the rest
+                if disc_loss.item() < 0.5:
+                    break
+
             # take the average loss
-            disc_total_loss /= self.args.disc_train_epochs
+            disc_total_loss /= disc_train_steps
 
             # Step 3: Update Policy with PPO using discriminator rewards
             self.discriminator_model.eval()
@@ -94,27 +126,54 @@ class GAIL:
                 # Compute discriminator rewards for agent trajectories
                 agent_obs = agent_obs.to(self.device)
                 agent_actions = agent_actions.to(self.device)
-                agent_rewards = -torch.log(
-                    self.discriminator_model(agent_obs, F.one_hot(agent_actions, num_classes=4).float()) + 1e-8).squeeze()
+                discriminator_outputs = self.discriminator_model(
+                    agent_obs, F.one_hot(agent_actions, num_classes=4).float()
+                )
+                # Compute raw rewards from discriminator
+                agent_rewards = -torch.log(discriminator_outputs + 1e-8).squeeze()
 
-                # Compute policy loss
+                # Normalize rewards to stabilize training
+                agent_rewards = (agent_rewards - agent_rewards.mean()) / (agent_rewards.std() + 1e-8)
+
+                # Forward pass through policy network
                 action_logits, values = self.policy_network(agent_obs.to(torch.long))
+
+                # Compute action probabilities and log-probabilities
                 action_probs = F.softmax(action_logits, dim=-1)
-                selected_action_probs = action_probs[range(len(agent_actions)), agent_actions]
+                log_action_probs = torch.log(action_probs + 1e-8)  # Log-safe softmax
 
+                # Select the log probabilities for actions taken
+                selected_log_probs = log_action_probs[range(len(agent_actions)), agent_actions]
+
+                # Compute advantages: (rewards - value estimates)
                 advantages = agent_rewards - values.detach().squeeze()
-                policy_loss = -(advantages * torch.log(selected_action_probs)).mean()  # Policy gradient
-                value_loss = F.mse_loss(values.squeeze(), agent_rewards)  # Value function loss
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)  # Normalize advantages
 
-                total_loss = policy_loss + value_loss
+                # Policy loss: Advantage-weighted policy gradient with entropy regularization
+                policy_loss = -(advantages * selected_log_probs).mean()
+                entropy_loss = -torch.sum(action_probs * log_action_probs, dim=-1).mean()  # Encourage exploration
+                total_policy_loss = policy_loss - self.args.entropy_weight * entropy_loss
+
+                # Value loss: Mean squared error between predicted values and rewards
+                value_loss = F.mse_loss(values.squeeze(), agent_rewards)
+
+                # Total loss (policy loss + value loss)
+                total_loss = total_policy_loss + value_loss
+
+                # Backpropagation and optimization
                 self.policy_optimizer.zero_grad()
                 total_loss.backward()
+
+                # Gradient clipping for stability
+                torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
                 self.policy_optimizer.step()
 
+            print(f"Epoch {epoch + 1}/{self.args.num_epochs} - Discriminator Loss: {disc_total_loss} - "
+                  f"Policy Loss: {total_loss} - Best score: {best_score}")
             if (epoch + 1) % self.args.save_freq == 0:
-                print(f"Epoch {epoch + 1}/{self.args.num_epochs} - Discriminator Loss: {disc_total_loss}")
                 torch.save(self.policy_network.state_dict(), f'{self.args.checkpoint_dir}/policy_{epoch}.pth')
-                torch.save(self.discriminator_model.state_dict(), f'{self.args.checkpoint_dir}/discriminator_{epoch}.pth')
+                torch.save(self.discriminator_model.state_dict(),
+                           f'{self.args.checkpoint_dir}/discriminator_{epoch}.pth')
 
 
 if __name__ == '__main__':

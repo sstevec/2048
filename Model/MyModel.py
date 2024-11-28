@@ -37,9 +37,9 @@ class ExpertLearningModel(nn.Module):
         x = x.reshape(b, r * c, hc)
 
         # input shape [batch, 9, hidden_dim]
-        # x = self.transformer1(x)
+        x = self.transformer1(x)
 
-        # x = self.transformer2(x)
+        x = self.transformer2(x)
         # the output here is [batch, 9, hidden_dim]
 
         x = self.fnn(x.reshape(b, -1))

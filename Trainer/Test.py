@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     # load model
     # last_epoch_num = trainer.load_latest_checkpoint()
-    trainer.load_checkpoint("./checkpoint/policy_299.pth")
+    trainer.load_checkpoint("./checkpoint/policy_99.pth")
 
     env = Game2048(fill_percent=0.3)
 

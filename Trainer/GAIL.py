@@ -31,9 +31,10 @@ class GAIL:
             # Step 1: Generate agent's trajectories
             self.policy_network.eval()
 
-            best_score = 0
+            best_score, precious_score = 0, 0
             agent_obs, agent_actions = [], []
             obs = self.env.reset()
+            stuck_counter = 0
             for _ in range(self.args.self_play_steps):
                 # Sample action from the current policy
                 action, _ = self.policy_network.sample_action(torch.from_numpy(obs).to(self.device).to(torch.long))
@@ -47,11 +48,21 @@ class GAIL:
                 agent_actions.append(action)
 
                 obs = next_obs
-                if done:
+
+                # prevent the model stuck on one stage forever
+                if precious_score == self.env.score:
+                    stuck_counter += 1
+                else:
+                    precious_score = self.env.score
+                    stuck_counter = 0
+
+                if done or stuck_counter > 10:
                     score = self.env.score
                     if score > best_score:
                         best_score = score
                     obs = self.env.reset()
+                    stuck_counter = 0
+                    precious_score = 0
 
             # Convert lists to tensors
             agent_obs = torch.from_numpy(np.array(agent_obs)).float()
@@ -62,7 +73,8 @@ class GAIL:
             disc_total_loss = 0
             disc_train_steps = 0
 
-            expert_obs, expert_actions = expert_dataset.random_sample(self.args.self_play_steps, int(best_score // 2))
+            expert_obs, expert_actions = expert_dataset.random_sample(self.args.self_play_steps,
+                                                                      int(best_score // 2) + 10)
             for _ in range(self.args.disc_train_epochs):
                 # Sample expert and agent batches
                 expert_indices = torch.randint(0, len(expert_obs), (self.args.batch_size,))
@@ -81,31 +93,18 @@ class GAIL:
                 agent_preds = self.discriminator_model(agent_obs_batch, agent_actions_batch)
 
                 # Label smoothing
-                smooth_labels_expert = torch.full_like(expert_preds, 0.9, device=self.device)
-                smooth_labels_agent = torch.full_like(agent_preds, 0.1, device=self.device)
+                smooth_labels_expert = torch.full_like(expert_preds, 0, device=self.device)
+                smooth_labels_agent = torch.full_like(agent_preds, 1, device=self.device)
 
                 # Discriminator loss
                 expert_loss = F.binary_cross_entropy_with_logits(expert_preds, smooth_labels_expert)
                 agent_loss = F.binary_cross_entropy_with_logits(agent_preds, smooth_labels_agent)
                 disc_loss = expert_loss + agent_loss
 
-                # Gradient penalty
-                mixed_obs = torch.cat([expert_obs_batch, agent_obs_batch], dim=0)
-                mixed_actions = torch.cat([expert_actions_batch, agent_actions_batch], dim=0)
-                mixed_preds = self.discriminator_model(mixed_obs, mixed_actions)
-                gradients = torch.autograd.grad(
-                    outputs=mixed_preds.sum(),
-                    inputs=[mixed_obs, mixed_actions],
-                    create_graph=True
-                )
-                gradient_norm = torch.cat([grad.norm(2, dim=-1) for grad in gradients], dim=-1).mean()
-                gradient_penalty = self.args.gradient_penalty_weight * (gradient_norm - 1).pow(2).mean()
-                disc_loss += gradient_penalty
-
                 # Backpropagation and optimization
                 self.disc_optimizer.zero_grad()
                 disc_loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.discriminator_model.parameters(), max_norm=1.0)
+                # torch.nn.utils.clip_grad_norm_(self.discriminator_model.parameters(), max_norm=1.0)
                 self.disc_optimizer.step()
 
                 # Track total loss for logging
@@ -132,9 +131,6 @@ class GAIL:
                 # Compute raw rewards from discriminator
                 agent_rewards = -torch.log(discriminator_outputs + 1e-8).squeeze()
 
-                # Normalize rewards to stabilize training
-                agent_rewards = (agent_rewards - agent_rewards.mean()) / (agent_rewards.std() + 1e-8)
-
                 # Forward pass through policy network
                 action_logits, values = self.policy_network(agent_obs.to(torch.long))
 
@@ -147,18 +143,15 @@ class GAIL:
 
                 # Compute advantages: (rewards - value estimates)
                 advantages = agent_rewards - values.detach().squeeze()
-                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)  # Normalize advantages
 
                 # Policy loss: Advantage-weighted policy gradient with entropy regularization
                 policy_loss = -(advantages * selected_log_probs).mean()
-                entropy_loss = -torch.sum(action_probs * log_action_probs, dim=-1).mean()  # Encourage exploration
-                total_policy_loss = policy_loss - self.args.entropy_weight * entropy_loss
 
                 # Value loss: Mean squared error between predicted values and rewards
                 value_loss = F.mse_loss(values.squeeze(), agent_rewards)
 
                 # Total loss (policy loss + value loss)
-                total_loss = total_policy_loss + value_loss
+                total_loss = policy_loss + value_loss
 
                 # Backpropagation and optimization
                 self.policy_optimizer.zero_grad()

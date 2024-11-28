@@ -23,12 +23,13 @@ def get_gail_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr', type=float, default=0.0001, help='policy net learning rate')
     parser.add_argument('--disc_lr', type=float, default=0.0002, help='discriminator network learning rate')
+    parser.add_argument('--entropy_weight', type=float, default=0.01, help='larger to encourage explore')
 
     parser.add_argument('--num_epochs', type=int, default=15000, help='number of full GAIL epochs')
 
     parser.add_argument('--self_play_steps', type=int, default=4000, help='num of steps of self-play')
 
-    parser.add_argument('--disc_train_epochs', type=int, default=3, help='disc train epoches')
+    parser.add_argument('--disc_train_epochs', type=int, default=6, help='disc train epoches')
     parser.add_argument('--batch_size', type=int, default=128, help='disc train batch size')
 
     parser.add_argument('--policy_update_steps', type=int, default=15,

@@ -13,15 +13,15 @@ if __name__ == '__main__':
 
     # get policy model
     trainer = Trainer(args)
-    trainer.load_checkpoint("Trainer/checkpoint/policy_49.pth")
+    # trainer.load_checkpoint("Trainer/checkpoint/policy_399.pth")
 
     # get game env
     env = Game2048(fill_percent=0.3)
 
     # get discriminator model
     disc_model = Discriminator(16, 4)
-    disc_check_point = torch.load("Trainer/checkpoint/discriminator_49.pth")
-    disc_model.load_state_dict(disc_check_point)
+    # disc_check_point = torch.load("Trainer/checkpoint/discriminator_399.pth")
+    # disc_model.load_state_dict(disc_check_point)
 
     # get the GAIL trainer
     gail_trainer = GAIL(args, env, trainer, disc_model)

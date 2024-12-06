@@ -33,7 +33,7 @@ class Trainer:
         input_dim = 16  # 16 means observation only, 20 means with observation + action
         embedding_dim = 32  # embed so we don't input integers to the model
         resnet_output_dim = 256
-        resnet_output_shape = 2
+        resnet_output_shape = 3
         output_dim = 4  # the probability for each action
 
         embedder = nn.Embedding(input_dim, embedding_dim)

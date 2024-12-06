@@ -2,44 +2,41 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 
+from Model import ResNet, ResidualBlock, CustomFNN
+
 
 class Discriminator(nn.Module):
-    def __init__(self, obs_dim, action_dim, hidden_dim=64):
+    def __init__(self, obs_dim, action_dim):
         super(Discriminator, self).__init__()
-        # Convolutional branch for 4x4 board observation
-        self.conv = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1),  # (4x4 -> 4x4), 16 filters
-            nn.ReLU(),
-            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),  # (4x4 -> 4x4), 16 filters
-            nn.ReLU(),
-            nn.Dropout2d(0.2),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),  # (4x4 -> 4x4), 32 filters
-            nn.ReLU(),
-            nn.Flatten()  # Flatten to (batch_size, 32 * 4 * 4)
-        )
-        self.fc_obs = nn.Linear(64 * obs_dim, hidden_dim)  # Fully connected for spatial features
+        self.hidden_dim = 128
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # Fully connected layer for one-hot encoded action
-        self.fc_action = nn.Linear(action_dim, hidden_dim)
+        self.obs_resnet = ResNet(ResidualBlock, [2, 2, 2], 1, 64, self.hidden_dim)
+        self.obs_flat = nn.Flatten()
 
-        # Combined branch
-        self.combined_fc = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim * 4),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(hidden_dim * 4, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1),  # Output probability
-            nn.Sigmoid()
-        )
+        self.act_fnn = CustomFNN([action_dim, 64, self.hidden_dim], self.device)
 
-    def forward(self, obs, action):
-        obs = obs.view(-1, 1, 4, 4)  # Reshape observation to (batch_size, 1, 4, 4)
-        spatial_features = self.conv(obs)  # Extract spatial features
-        spatial_features = self.fc_obs(spatial_features)  # Map to hidden_dim
+        self.combined_fnn = CustomFNN(
+            [(3 * 3 + 1) * self.hidden_dim, 4 * self.hidden_dim, 2 * self.hidden_dim, self.hidden_dim, 1],
+            self.device)
 
-        action_features = self.fc_action(action)  # Process action
+    def forward(self, obs, action, policy_log_probs):
+        # Reshape observation to (batch_size, 1, 4, 4)
+        obs = obs.view(-1, 1, 4, 4)
+        # Extract spatial features
+        spatial_features = self.obs_resnet(obs)
+        spatial_features = self.obs_flat(spatial_features)
+
+        # Process action
+        action_features = self.act_fnn(action.squeeze(1))
 
         combined = torch.cat([spatial_features, action_features], dim=1)
-        output = self.combined_fc(combined)  # Final classification
-        return output
+        f = self.combined_fnn(combined).squeeze(-1)
+
+        # Compute the discriminator output
+        d = torch.sigmoid(f - policy_log_probs)
+
+        # Reward function, it is explicitly compute last, do not reuse rewards to compute d, it will mess up the backprop
+        rewards = f - policy_log_probs
+
+        return d, rewards

@@ -51,7 +51,11 @@ class ExpertLearningModel(nn.Module):
 
     # Sample action is not deterministic, it encourages exploration
     def sample_action(self, x):
-        logits, _ = self.forward(x.unsqueeze(0))
+        logits, value = self.forward(x.unsqueeze(0))
+
         action_probs = F.softmax(logits, dim=-1)
-        action = torch.multinomial(action_probs, num_samples=1)
-        return action.squeeze(1), logits
+        action = torch.multinomial(action_probs, num_samples=1).squeeze(1)
+
+        action_log_probs = F.log_softmax(logits, dim=-1)
+
+        return action, action_log_probs, value

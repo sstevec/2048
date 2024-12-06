@@ -54,8 +54,8 @@ class SequenceDataset(Dataset):
                 selected_labels.append(_label)
                 selected_indices.add(index)
 
-        tensor_data = torch.cat(selected_data, dim=0)
-        tensor_labels = torch.cat(selected_labels, dim=0).to(dtype=torch.long)
+        tensor_data = torch.cat(selected_data, dim=0)[:k]
+        tensor_labels = torch.cat(selected_labels, dim=0).to(dtype=torch.long)[:k]
 
         return tensor_data, tensor_labels
 

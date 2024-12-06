@@ -46,7 +46,7 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 256, layers[1], 3)
         self.layer3 = self._make_layer(block, 512, layers[2], 3)
 
-        self.avgpool = nn.AdaptiveAvgPool2d(2)
+        self.avgpool = nn.AdaptiveAvgPool2d(3)
 
         # Final fully connected layer
         # input features should be the output channel of the last layer
@@ -78,7 +78,7 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
 
-        # 3 layers of resnet does not change sequence, pooling from 5 -> 3
+        # 3 layers of resnet does not change sequence, pooling from original_dim -> 3
         x = self.avgpool(x)
         x = x.permute(0, 2, 3, 1)
         x = self.fc(x)
